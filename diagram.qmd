@@ -5,15 +5,24 @@ flowchart TD
   user[User]
   app["App\n(PCGL2Cache/app)"]
   gps["Pub/Sub\n(Google PubSub via\nmessagingclient)"]
-  worker["Worker\n(PCGL2Cache/workers - \n callback/calculate_features)"]
+  worker["Worker\n(PCGL2Cache/workers - \ncallback,calculate_features)"]
   bigtable[("Storage \n(BigTable)")]
   exists{"Query exists?\n(app/\nhandle_attributes)"}
-  user -- "Ask for data" --> app
-  app -- "Check" --> exists
-  exists -- "Send data" --> app
-  exists <-- "IF YES:\ntransfer data" --> bigtable
-  exists -- "IF NO:\nPublish job request\n(app/_trigger_cache_update)" --> gps
-  gps -- "Send job request" --> worker
-  worker -- "Send job result" --> bigtable
-  app -- "Send data" --> user
+  user --"Ask for data"--> app
+  app --"Check"--> exists
+  exists --"Send data"--> app
+  exists <--"IF YES:\ntransfer data"--> bigtable
+  exists --"IF NO:\nPublish job request\n(app/_trigger_cache_update)"--> gps
+  gps --"Send job request"--> worker
+  worker --"Send job result"--> bigtable
+  app --"Send data"--> user
 ```
+
+Prototyping core functionality:
+- Version which posts query root IDs not in the google bucket to a pub/sub queue
+- Version which has a worker script which also listens to the pub/sub queue 
+- Version which makes the worker script actually do the computation
+
+Then add: 
+- Auth
+- Abstract away the dataset

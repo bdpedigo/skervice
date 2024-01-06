@@ -17,3 +17,11 @@ class BaseConfig(object):
     USE_REDIS_JOBS = False
     CHUNKGRAPH_TABLE_ID = ""
     AUTH_SERVICE_NAMESPACE = "pychunkedgraph"
+
+
+class DevelopmentConfig(BaseConfig):
+    """Development configuration."""
+
+    USE_REDIS_JOBS = False
+    DEBUG = True
+    LOGGING_LEVEL = logging.ERROR
