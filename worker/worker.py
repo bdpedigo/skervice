@@ -1,62 +1,71 @@
 # pylint: disable=invalid-name, missing-docstring, logging-fstring-interpolation, broad-exception-caught, line-too-long
 
+import json
 import logging
-from os import getenv
 from pickle import loads
 
 import numpy as np
-from messagingclient import MessagingClient
+
+from skervice.core import SubscriberClient, get_cloud_files
 
 
-def write_to_cloud_files(ids, cache_id, cache_config):
+def write_to_cloud_files(write_id, data):
     cf = get_cloud_files()
-    cf.put(f"{cache_id}.json", json.dumps({}))
+    cf.put(f"{write_id}.json", json.dumps(data))
 
-def calculate_skeletons(root_ids, cache_id, cache_config):
+
+def callback_decorator(func):
+    def callback(payload, *args, **kwargs):
+        INFO_PRIORITY = 25
+        logging.basicConfig(
+            level=INFO_PRIORITY,
+            format="%(asctime)s %(message)s",
+            datefmt="%m-%d-%Y %I:%M:%S %p",
+        )
+
+        data = payload.data
+        try:
+            data = loads(data)
+        except Exception as exc:
+            logging.warning(f"Could not load data: {exc}")
+            payload.ack()
+            return
+        ids = np.array(data["root_ids"], dtype=np.uint64)
+
+        try:
+            func(ids, *args, **kwargs)
+            logging.log(
+                INFO_PRIORITY,
+                f"Calculated features for {ids.size} IDs {ids[:5]}...",
+            )
+        except Exception as exc:
+            logging.warning(f"Something went wrong: {exc}")
+
+        payload.ack()
+
+    return callback
+
+
+@callback_decorator
+def compute_skeletons(root_ids):
+    outs = []
     for root_id in root_ids:
+        # TODO replace with actual computation of the skeletons
+        outs.append({})
+
+    for root_id, out in zip(root_ids, outs):
+        write_to_cloud_files(root_id, out)
 
 
+import logging
+import sys
 
-def callback(payload):
-    INFO_PRIORITY = 25
-    logging.basicConfig(
-        level=INFO_PRIORITY,
-        format="%(asctime)s %(message)s",
-        datefmt="%m-%d-%Y %I:%M:%S %p",
-    )
-
-    graph_id = payload.attributes["table_id"]
-    data = loads(payload.data)
-    ids = np.array(data["root_ids"], dtype=np.uint64)
-
-    try:
-        l2cache_config = read_l2cache_config()[graph_id]
-    except KeyError:
-        logging.error(f"Config for {graph_id} not found.")
-        # ignore datasets without l2cache
-        return
-
-    cache_id = payload.attributes.get("cache_id", l2cache_config["cache_id"])
-
-    try:
-        calculate_skeletons(ids, cache_id, l2cache_config["cv_path"])
-    except Exception as exc:
-        logging.warning(f"Something went wrong: {exc}")
-
-    # attributes = {
-    #     "table_id": graph_id,
-    #     "operation_id": str(data["operation_id"])
-    # }
-    # exchange = getenv("L2CACHE_FINISHED_EXCHANGE", "does-not-exist")
-    # c = MessagingClient()
-    # c.publish(exchange, l2ids.tobytes(), attributes)
-
-    logging.log(
-        INFO_PRIORITY,
-        f"Calculated features for {ids.size} L2 IDs {ids[:5]}..., graph: {graph_id}, cache: {cache_id}",
-    )
-
-
-c = MessagingClient()
-l2cache_update_queue = getenv("CACHE_UPDATE_QUEUE", "does-not-exist")
-c.consume(l2cache_update_queue, callback)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+print("Listening for messages...")
+future = SubscriberClient(max_messages=10).subscribe(compute_skeletons)
+try:
+    future.result()
+except Exception as exc:
+    # terminate on any exception so that the worker isn't hung.
+    future.cancel()
+    print(f"stopped listening: {exc}")

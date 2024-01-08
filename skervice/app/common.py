@@ -7,9 +7,10 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import tomllib
-from cloudfiles import CloudFiles
 from flask import Blueprint, current_app, jsonify, make_response, request
 from messagingclient import MessagingClient
+
+from ..core import get_cloud_files
 
 with open("pyproject.toml", "rb") as f:
     meta = tomllib.load(f)
@@ -43,13 +44,6 @@ def test():
         return "test post"
     else:
         return "test get"
-
-
-def get_cloud_files() -> CloudFiles:
-    # Dummy function for now, will not be hard coded in the future
-    out_path = "allen-minnie-phase3/skervice"
-    cf = CloudFiles("gs://" + out_path)
-    return cf
 
 
 def get_messaging_details() -> tuple[MessagingClient, str]:
