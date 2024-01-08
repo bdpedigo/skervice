@@ -4,10 +4,12 @@ import time
 import traceback
 from datetime import datetime
 
+import numpy as np
 import pandas as pd
 import tomllib
 from cloudfiles import CloudFiles
 from flask import Blueprint, current_app, jsonify, make_response, request
+from messagingclient import MessagingClient
 
 with open("pyproject.toml", "rb") as f:
     meta = tomllib.load(f)
@@ -43,25 +45,61 @@ def test():
         return "test get"
 
 
-def get_cloud_paths():
+def get_cloud_files() -> CloudFiles:
     # Dummy function for now, will not be hard coded in the future
     out_path = "allen-minnie-phase3/skervice"
     cf = CloudFiles("gs://" + out_path)
     return cf
 
 
+def get_messaging_details() -> tuple[MessagingClient, str]:
+    # Dummy function for now, will not be hard coded in the future
+    os.environ["PROJECT_NAME"] = "em-270621"
+    message_client = MessagingClient()
+    exchange = "SKERVICE"
+    return message_client, exchange
+
+
+def post_to_exchange(object_ids: list, attributes: dict) -> None:
+    if len(object_ids) > 0:
+        # Dummy function for now, will not be hard coded in the future
+        messaging_client, exchange = get_messaging_details()
+
+        payload = np.array(object_ids, dtype=np.uint64).tobytes()
+
+        # TODO fill this in
+        # attributes = {
+        #     "table_id": graph_id,
+        #     "l2_cache_id": l2_cache_id,
+        # }
+
+        messaging_client.publish(exchange, payload, attributes)
+
+
+def check_if_data_exists(object_ids: list) -> pd.Series:
+    # check if these root IDs have data
+    cf = get_cloud_files()
+    has_data = {}
+    for object_id in object_ids:
+        has_data[object_id] = cf.exists(f"{object_id}.json")
+    has_data = pd.Series(has_data)
+
+    return has_data
+
+
 @bp.route("/fetch", methods=["POST"])
 def fetch():
-    data = request.data
-    data = json.loads(data)
-    root_ids = data["root_ids"]
-    cf = get_cloud_paths()
-    has_data = {}
-    for root_id in root_ids:
-        has_data[root_id] = cf.exists(f"{root_id}.json")
-    has_data = pd.Series
-    out = jsonify(has_data)
-    return out
+    data = json.loads(request.data)
+    request_ids = data["request_ids"]
+
+    has_data = check_if_data_exists(request_ids)
+
+    missing_data_ids = has_data[~has_data].index.tolist()
+    post_to_exchange(missing_data_ids, {})
+
+    # TODO actually return the data that was requested
+
+    return 1
 
 
 def home():

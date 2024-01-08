@@ -18,6 +18,8 @@ flowchart TD
   app --"Send data"--> user
 ```
 
+
+
 Prototyping core functionality:
 - Version which posts query root IDs not in the google bucket to a pub/sub queue
 - Version which has a worker script which also listens to the pub/sub queue 
@@ -26,3 +28,34 @@ Prototyping core functionality:
 Then add: 
 - Auth
 - Abstract away the dataset
+
+```{mermaid}
+flowchart TD
+  caveclient[CAVEclient]
+  skervice[skervice flask app]
+  cloudbucket[google cloud bucket]
+  pubsub[google pub sub]
+  worker[worker]
+
+  caveclient --"ask for data\n(POST request)"--> skervice
+  skervice --"check if\nfile exists"--> cloudbucket
+  skervice --"send missing IDs\nto queue" --> pubsub
+  pubsub --"send missing IDs\nto listener" --> worker 
+  worker --"send computation result" --> cloudbucket
+```
+
+## more general
+```{mermaid}
+flowchart TD
+  client[client]
+  service[service flask app]
+  cloudbucket[cloud storage]
+  pubsub[pub/sub]
+  worker[worker]
+
+  client --"ask for data\n(POST request)"--> service
+  service --"check if\nfile exists"--> cloudbucket
+  service --"send missing IDs\nto queue" --> pubsub
+  pubsub --"send missing IDs\nto listener" --> worker 
+  worker --"send computation result" --> cloudbucket
+```
