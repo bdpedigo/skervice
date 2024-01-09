@@ -80,6 +80,12 @@ def check_if_data_exists(object_ids: list) -> pd.Series:
 
     return has_data
 
+def get_data(object_ids: list) -> pd.Series:
+    cf = get_cloud_files()
+
+    data = {}
+    for object_id in object_ids:
+        data[object_id] = json.loads(cf.get(f"{object_id}.json"))
 
 @bp.route("/fetch", methods=["POST"])
 def fetch():
@@ -90,6 +96,9 @@ def fetch():
 
     missing_data_ids = has_data[~has_data].index.tolist()
     post_to_exchange(missing_data_ids, {})
+
+    has_data_ids = has_data[has_data].index.tolist()
+
 
     # TODO actually return the data that was requested
 

@@ -2,7 +2,6 @@
 
 import json
 import logging
-from pickle import loads
 
 import numpy as np
 
@@ -23,14 +22,12 @@ def callback_decorator(func):
             datefmt="%m-%d-%Y %I:%M:%S %p",
         )
 
-        data = payload.data
         try:
-            data = loads(data)
+            ids = np.frombuffer(payload.data, dtype=np.uint64)
         except Exception as exc:
             logging.warning(f"Could not load data: {exc}")
             payload.ack()
             return
-        ids = np.array(data["root_ids"], dtype=np.uint64)
 
         try:
             func(ids, *args, **kwargs)
